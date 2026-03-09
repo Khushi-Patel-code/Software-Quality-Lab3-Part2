@@ -10,20 +10,11 @@ Video2: Design Part
 
 # Discussion
 
-## Pipeline
-A pipeline in Jenkins is a sequence of automated steps that define the process of building, testing, and deploying an application. Pipelines are usually defined in a `Jenkinsfile`, which allows the workflow to be written as code.
-
-## Node
-A node is a machine where Jenkins runs jobs. It provides the environment and resources needed to execute builds and pipeline tasks.
-
-## Agent
-An agent is a worker that runs tasks from a Jenkins pipeline. It executes stages and steps on a node. In this lab, Kubernetes pods were used as Jenkins agents.
-
-## Stage
-A stage represents a major step in the pipeline. Each stage groups related tasks together, such as testing, building, or deploying the application.
-
-## Steps
-Steps are the individual commands inside a stage that Jenkins executes. Examples include running tests, building the project with Maven, or executing deployment commands.
+- Pipeline: A pipeline in Jenkins is a sequence of automated steps that define the process of building, testing, and deploying an application. Pipelines are usually defined in a `Jenkinsfile`, which allows the workflow to be written as code.
+- Node: A node is a machine where Jenkins runs jobs. It provides the environment and resources needed to execute builds and pipeline tasks.
+- Agent: An agent is a worker that runs tasks from a Jenkins pipeline. It executes stages and steps on a node. In this lab, Kubernetes pods were used as Jenkins agents.
+-Stage: A stage represents a major step in the pipeline. Each stage groups related tasks together, such as testing, building, or deploying the application.
+- Steps: Steps are the individual commands inside a stage that Jenkins executes. Examples include running tests, building the project with Maven, or executing deployment commands.
 
 # Design
 
