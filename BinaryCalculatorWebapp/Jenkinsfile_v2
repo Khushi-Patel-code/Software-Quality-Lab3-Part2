@@ -38,7 +38,7 @@ spec:
                     dir('BinaryCalculatorWebapp') {
                         sh "gcloud config set project ${PROJECT}"
                         sh "gcloud auth configure-docker us-central1-docker.pkg.dev --quiet"
-                        sh "gcloud builds submit -t ${IMAGE} ."
+                        sh "gcloud builds submit --project=${PROJECT} --tag ${IMAGE} ."
                     }
                 }
             }
