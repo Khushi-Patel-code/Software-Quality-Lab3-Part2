@@ -18,29 +18,19 @@ spec:
         REPO_PATH = credentials('repo_path')
         CLUSTER = credentials('cluster_name')
         ZONE = credentials('cluster_zone')
-        IMAGE = "${REPO_PATH}/binarycalculatorwebapp:latest"
     }
     tools {
         maven 'maven'
     }
     stages {
-        stage('Build & Test') {
+        stage('Build & Push with Jib') {
             steps {
-                // Ensure we are in the correct directory for Maven
                 dir('BinaryCalculatorWebapp') {
-                    sh 'mvn clean package -DskipTests'
+                    // This combines building and pushing to bypass GKE scope issues
+                    sh "mvn compile jib:build -DskipTests -Djib.to.image=us-central1-docker.pkg.dev/${PROJECT}/sofe3980u/binarycalculatorwebapp:latest"
                 }
             }
         }
-        stage('Push to Registry') {
-        steps {
-            dir('BinaryCalculatorWebapp') {
-                // Jib uses Maven to build and push the image directly
-                sh "mvn compile jib:build -DskipTests"
-            }
-        }
-    }
-    }
         stage('Deploy to GKE') {
             steps {
                 container('gcloud') {
@@ -52,7 +42,7 @@ spec:
                             echo "Deployment not found, creating fresh."
                         }
                     }
-                    sh "kubectl create deployment binarycalculator-deployment --image=${IMAGE} --port=8080"
+                    sh "kubectl create deployment binarycalculator-deployment --image=us-central1-docker.pkg.dev/${PROJECT}/sofe3980u/binarycalculatorwebapp:latest --port=8080"
                     sh "kubectl expose deployment binarycalculator-deployment --type=LoadBalancer --name=binarycalculator-service || true"
                 }
             }
