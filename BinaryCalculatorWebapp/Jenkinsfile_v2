@@ -33,16 +33,16 @@ spec:
             }
         }
         stage('Push to Registry') {
-            steps {
-                container('gcloud') {
-                    dir('BinaryCalculatorWebapp') {
-                        sh "gcloud config set project ${PROJECT}"
-                        sh "gcloud auth configure-docker us-central1-docker.pkg.dev --quiet"
-                        sh "gcloud builds submit --project=${PROJECT} --tag ${IMAGE} ."
-                    }
+        steps {
+            container('gcloud') {
+                dir('BinaryCalculatorWebapp') {
+                    // We force the project ID into every command to bypass scope issues
+                    sh "gcloud config set project ${PROJECT}"
+                    sh "gcloud builds submit --project=${PROJECT} --tag ${IMAGE} ."
                 }
             }
         }
+    }
         stage('Deploy to GKE') {
             steps {
                 container('gcloud') {
