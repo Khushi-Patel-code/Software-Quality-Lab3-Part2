@@ -34,14 +34,12 @@ spec:
         }
         stage('Push to Registry') {
         steps {
-            container('gcloud') {
-                dir('BinaryCalculatorWebapp') {
-                    // We force the project ID into every command to bypass scope issues
-                    sh "gcloud config set project ${PROJECT}"
-                    sh "gcloud builds submit --project=${PROJECT} --tag ${IMAGE} ."
-                }
+            dir('BinaryCalculatorWebapp') {
+                // Jib uses Maven to build and push the image directly
+                sh "mvn compile jib:build -DskipTests"
             }
         }
+    }
     }
         stage('Deploy to GKE') {
             steps {
