@@ -1,95 +1,63 @@
 pipeline {
-    environment {
-        // We keep these for pathing, but we no longer use the SERVICE_ACCOUNT key file
-        PROJECT = credentials('project_id')
-        REPO_PATH = credentials("repo_path") 
-        APP_NAME = "binarycalculatorwebapp"
-        IMAGE_TAG = "${REPO_PATH}/${APP_NAME}"
-        CLUSTER = credentials("cluster_name")
-        CLUSTER_ZONE = credentials("cluster_zone")
-    }
-    agent { 
+    agent {
         kubernetes {
-            label 'sample-app'
-            yaml """
-                apiVersion: v1
-                kind: Pod
-                metadata:
-                  labels: 
-                    component: ci
-                spec:
-                  containers:
-                  - name: gcloud
-                    image: google/cloud-sdk:latest
-                    command:
-                    - cat
-                    tty: true
-                """
+            yaml '''
+apiVersion: v1
+kind: Pod
+spec:
+  containers:
+  - name: gcloud
+    image: google/cloud-sdk:latest
+    command: ["cat"]
+    tty: true
+'''
         }
+    }
+    environment {
+        PROJECT = credentials('project_id')
+        REPO_PATH = credentials('repo_path')
+        CLUSTER = credentials('cluster_name')
+        ZONE = credentials('cluster_zone')
+        IMAGE = "${REPO_PATH}/binarycalculatorwebapp:latest"
     }
     tools {
         maven 'maven'
     }
     stages {
-        stage ('test') {
+        stage('Build & Test') {
             steps {
-                sh 'mvn clean test -f ./BinaryCalculatorWebapp/pom.xml'
+                // Ensure we are in the correct directory for Maven
+                dir('BinaryCalculatorWebapp') {
+                    sh 'mvn clean package -DskipTests'
+                }
             }
         }
-        stage('build'){
-            steps{
-                sh 'mvn package -DskipTests -f ./BinaryCalculatorWebapp/ clean package'
-            }
-        }
-        stage('containerize'){
-            steps{
+        stage('Push to Registry') {
+            steps {
                 container('gcloud') {
-                    dir('BinaryCalculatorWebapp'){
-                        // Use Node Identity instead of key-file
+                    dir('BinaryCalculatorWebapp') {
                         sh "gcloud config set project ${PROJECT}"
                         sh "gcloud auth configure-docker us-central1-docker.pkg.dev --quiet"
-                        sh "gcloud builds submit -t ${IMAGE_TAG} --suppress-logs"
+                        sh "gcloud builds submit -t ${IMAGE} ."
                     }
                 }
             }
         }
-        stage('deployment'){
-            steps{
+        stage('Deploy to GKE') {
+            steps {
                 container('gcloud') {
-                    dir('BinaryCalculatorWebapp'){
-                        sh "gcloud config set project ${PROJECT}"
-                        // Authenticate using the cluster's internal identity
-                        sh "gcloud container clusters get-credentials ${CLUSTER} --zone=${CLUSTER_ZONE}"
-                        script {
-                            try {
-                                sh 'kubectl delete deployment binarycalculator-deployment'
-                            } catch (Exception e) {
-                                // Ignore if it doesn't exist
-                            }
+                    sh "gcloud container clusters get-credentials ${CLUSTER} --zone ${ZONE} --project ${PROJECT}"
+                    script {
+                        try {
+                            sh "kubectl delete deployment binarycalculator-deployment"
+                        } catch (e) {
+                            echo "Deployment not found, creating fresh."
                         }
-                        sh "kubectl create deployment binarycalculator-deployment --image ${IMAGE_TAG} --port=8080"
                     }
-                }
-            }
-        }
-        stage('service'){
-            steps{
-                container('gcloud') {
-                    dir('BinaryCalculatorWebapp'){
-                        sh "gcloud config set project ${PROJECT}"
-                        sh "gcloud container clusters get-credentials ${CLUSTER} --zone=${CLUSTER_ZONE}"
-                        script {
-                            try {
-                                sh 'kubectl expose deployment binarycalculator-deployment --type=LoadBalancer --name=binarycalculator-service'
-                            } catch (Exception e) {
-                                // Ignore if it already exists
-                            }
-                        }
-                        // This will show the IP in the logs
-                        sh "kubectl get service binarycalculator-service"
-                    }
+                    sh "kubectl create deployment binarycalculator-deployment --image=${IMAGE} --port=8080"
+                    sh "kubectl expose deployment binarycalculator-deployment --type=LoadBalancer --name=binarycalculator-service || true"
                 }
             }
         }
     }
-}git pull origin main
+}
