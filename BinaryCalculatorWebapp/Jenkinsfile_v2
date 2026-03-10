@@ -18,32 +18,35 @@ spec:
         REPO_PATH = credentials('repo_path')
         CLUSTER = credentials('cluster_name')
         ZONE = credentials('cluster_zone')
+        IMAGE = "${REPO_PATH}/binarycalculatorwebapp:latest"
     }
     tools {
         maven 'maven'
     }
     stages {
-        stage('Build & Push with Jib') {
+        stage('Build') {
             steps {
                 dir('BinaryCalculatorWebapp') {
-                    // This combines building and pushing to bypass GKE scope issues
-                    sh "mvn compile jib:build -DskipTests -Djib.to.image=us-central1-docker.pkg.dev/${PROJECT}/sofe3980u/binarycalculatorwebapp:latest"
+                    sh 'mvn clean package -DskipTests'
                 }
             }
         }
-        stage('Deploy to GKE') {
+        stage('Push to Registry') {
+            steps {
+                container('gcloud') {
+                    dir('BinaryCalculatorWebapp') {
+                        sh "gcloud config set project ${PROJECT}"
+                        // Using --no-source avoids the "Forbidden Bucket" error
+                        sh "gcloud builds submit --project=${PROJECT} --tag ${IMAGE} --no-source ."
+                    }
+                }
+            }
+        }
+        stage('Deploy') {
             steps {
                 container('gcloud') {
                     sh "gcloud container clusters get-credentials ${CLUSTER} --zone ${ZONE} --project ${PROJECT}"
-                    script {
-                        try {
-                            sh "kubectl delete deployment binarycalculator-deployment"
-                        } catch (e) {
-                            echo "Deployment not found, creating fresh."
-                        }
-                    }
-                    sh "kubectl create deployment binarycalculator-deployment --image=us-central1-docker.pkg.dev/${PROJECT}/sofe3980u/binarycalculatorwebapp:latest --port=8080"
-                    sh "kubectl expose deployment binarycalculator-deployment --type=LoadBalancer --name=binarycalculator-service || true"
+                    sh "kubectl apply -f BinaryCalculatorWebapp/deployment.yaml || (kubectl create deployment binarycalculator --image=${IMAGE} && kubectl expose deployment binarycalculator --type=LoadBalancer --port=8080)"
                 }
             }
         }
