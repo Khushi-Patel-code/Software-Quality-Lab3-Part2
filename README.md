@@ -5,8 +5,8 @@
 https://github.com/Khushi-Patel-code/Software-Quality-Lab3-Part2
 
 ### Videos
-[Video1: CI Part (two techniques)](https://drive.google.com/file/d/1Hd7_cvI3WwhQyRMy4GVhMzJ-RfD4_ROV/view?usp=sharing)
-Video2: Design Part
+[Video1: CI Part (two techniques)](https://drive.google.com/file/d/1Hd7_cvI3WwhQyRMy4GVhMzJ-RfD4_ROV/view?usp=sharing)  
+[Video2: Design Part](https://drive.google.com/file/d/1ggV7dQbfgYq3xZIOX8S28M5dPNRLp0ro/view?usp=sharing)
 
 # Discussion
 
