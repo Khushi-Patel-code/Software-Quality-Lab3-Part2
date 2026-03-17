@@ -1,52 +1,96 @@
 pipeline {
+    environment {
+        SERVICE_ACCOUNT = credentials('service_account') 
+        PROJECT         = credentials('project_id')
+        REPO_PATH       = credentials('repo_path') 
+        APP_NAME        = "binarycalculatorwebapp"
+        IMAGE_TAG       = "${REPO_PATH}/${APP_NAME}"
+        CLUSTER         = credentials('cluster_name')
+        CLUSTER_ZONE    = credentials('cluster_zone')
+    }
     agent {
         kubernetes {
-            yaml '''
-apiVersion: v1
-kind: Pod
-spec:
-  containers:
-  - name: gcloud
-    image: google/cloud-sdk:latest
-    command: ["cat"]
-    tty: true
-'''
+            label 'sample-app'
+            yaml """
+            apiVersion: v1
+            kind: Pod
+            metadata:
+              labels:
+                component: ci
+            spec:
+              containers:
+              - name: gcloud
+                image: google/cloud-sdk:latest
+                command: ["cat"]
+                tty: true
+            """
         }
-    }
-    environment {
-        PROJECT = credentials('project_id')
-        REPO_PATH = credentials('repo_path')
-        CLUSTER = credentials('cluster_name')
-        ZONE = credentials('cluster_zone')
-        IMAGE = "${REPO_PATH}/binarycalculatorwebapp:latest"
     }
     tools {
         maven 'maven'
     }
     stages {
-        stage('Build') {
+        stage ('test') {
             steps {
-                dir('BinaryCalculatorWebapp') {
-                    sh 'mvn clean package -DskipTests'
-                }
+                sh 'mvn clean test -f ./BinaryCalculatorWebapp/pom.xml'
             }
         }
-        stage('Push to Registry') {
-            steps {
+        stage('build'){
+            steps{
+                // Clean and package the WAR file
+                sh 'mvn clean package -DskipTests -f ./BinaryCalculatorWebapp/pom.xml'
+            }
+        }
+        stage('containerize'){
+            steps{
                 container('gcloud') {
-                    dir('BinaryCalculatorWebapp') {
+                    dir('BinaryCalculatorWebapp'){
+                        sh "gcloud auth activate-service-account --key-file ${SERVICE_ACCOUNT}"
                         sh "gcloud config set project ${PROJECT}"
-                        // Using --no-source avoids the "Forbidden Bucket" error
-                        sh "gcloud builds submit --project=${PROJECT} --tag ${IMAGE} --no-source ."
+                        // Using Cloud Builds to create the image
+                        sh "gcloud builds submit -t ${IMAGE_TAG} --suppress-logs"
                     }
                 }
             }
         }
-        stage('Deploy') {
-            steps {
+        stage('deployment'){
+            steps{
                 container('gcloud') {
-                    sh "gcloud container clusters get-credentials ${CLUSTER} --zone ${ZONE} --project ${PROJECT}"
-                    sh "kubectl apply -f BinaryCalculatorWebapp/deployment.yaml || (kubectl create deployment binarycalculator --image=${IMAGE} && kubectl expose deployment binarycalculator --type=LoadBalancer --port=8080)"
+                    dir('BinaryCalculatorWebapp'){
+                        sh "gcloud auth activate-service-account --key-file ${SERVICE_ACCOUNT}"
+                        sh "gcloud config set project ${PROJECT}"
+                        sh "gcloud container clusters get-credentials ${CLUSTER} --zone ${CLUSTER_ZONE}"
+                        script {
+                            try {
+                                sh 'kubectl delete deployment binarycalculator-deployment'
+                            } catch (Exception e) {
+                                echo "No existing deployment to delete, proceeding..."
+                            }
+                        }
+                        sh "kubectl create deployment binarycalculator-deployment --image ${IMAGE_TAG} --port=8080"
+                    }
+                }
+            }
+        }
+        stage('service'){
+            steps{
+                container('gcloud') {
+                    dir('BinaryCalculatorWebapp'){
+                        sh "gcloud auth activate-service-account --key-file ${SERVICE_ACCOUNT}"
+                        sh "gcloud config set project ${PROJECT}"
+                        sh "gcloud container clusters get-credentials ${CLUSTER} --zone ${CLUSTER_ZONE}"
+                        script {
+                            try {
+                                sh 'kubectl expose deployment binarycalculator-deployment --type=LoadBalancer --name=binarycalculator-service'
+                            } catch (Exception e) {
+                                echo "Service already exists or could not be exposed."
+                            }
+                        }
+                        // Display the service IP
+                        echo "Waiting for external IP..."
+                        sleep 30 // Wait for Google to assign the IP
+                        sh "kubectl get service binarycalculator-service"
+                    }
                 }
             }
         }
